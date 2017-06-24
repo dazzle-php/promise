@@ -1,8 +1,8 @@
 <?php
 
-namespace Kraken\Promise\Helper;
+namespace Dazzle\Promise\Helper;
 
-use Kraken\Promise\PromiseInterface;
+use Dazzle\Promise\PromiseInterface;
 use Error;
 use Exception;
 

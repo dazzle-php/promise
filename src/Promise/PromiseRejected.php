@@ -1,21 +1,22 @@
 <?php
 
-namespace Kraken\Promise;
+namespace Dazzle\Promise;
 
-use Kraken\Throwable\Exception\Logic\InvalidArgumentException;
-use Kraken\Throwable\Exception\Runtime\CancellationException;
+use Dazzle\Throwable\Exception\Logic\InvalidArgumentException;
+use Dazzle\Throwable\Exception\Runtime\RejectionException;
+use Dazzle\Throwable\ThrowableProxy;
 use Error;
 use Exception;
 
-class PromiseCancelled implements PromiseInterface
+class PromiseRejected implements PromiseInterface
 {
     /**
-     * @var Error|Exception|string|null
+     * @var Error|Exception|ThrowableProxy|string|null
      */
     protected $reason;
 
     /**
-     * @param Error|Exception|string|null $reason
+     * @param Error|Exception|string|null
      * @throws InvalidArgumentException
      */
     public function __construct($reason = null)
@@ -23,7 +24,7 @@ class PromiseCancelled implements PromiseInterface
         if ($reason instanceof PromiseInterface)
         {
             throw new InvalidArgumentException(
-                'You cannot create PromiseCancelled with a promise. Use Promise::doCancel($promiseOrValue) instead.'
+                'You cannot create PromiseRejected with a promise. Use Promise::doReject($promiseOrValue) instead.'
             );
         }
 
@@ -44,29 +45,23 @@ class PromiseCancelled implements PromiseInterface
      */
     public function then(callable $onFulfilled = null, callable $onRejected = null, callable $onCancel = null)
     {
-        if (null === $onCancel)
+        if (null === $onRejected)
         {
             return $this;
         }
 
         try
         {
-            return Promise::doResolve($onCancel($this->getReason()))
-                ->then(
-                    function() {
-                        return Promise::doCancel($this->getReason());
-                    },
-                    function() {
-                        return Promise::doCancel($this->getReason());
-                    }
-                );
+            return Promise::doResolve($onRejected($this->getReason()));
         }
         catch (Error $ex)
-        {}
+        {
+            return new PromiseRejected($ex);
+        }
         catch (Exception $ex)
-        {}
-
-        return Promise::doCancel($this->getReason());
+        {
+            return new PromiseRejected($ex);
+        }
     }
 
     /**
@@ -75,12 +70,12 @@ class PromiseCancelled implements PromiseInterface
      */
     public function done(callable $onFulfilled = null, callable $onRejected = null, callable $onCancel = null)
     {
-        if (null === $onCancel)
+        if (null === $onRejected)
         {
             $this->throwError($this->getReason());
         }
 
-        $result = $onCancel($this->getReason());
+        $result = $onRejected($this->getReason());
 
         if ($result instanceof self)
         {
@@ -101,9 +96,8 @@ class PromiseCancelled implements PromiseInterface
     {
         return $this->then(
             null,
-            null,
-            function($reasons) use($onCancel) {
-                return $onCancel(...((array) $reasons));
+            function($rejections) use($onRejected) {
+                return $onRejected(...((array) $rejections));
             }
         );
     }
@@ -143,7 +137,6 @@ class PromiseCancelled implements PromiseInterface
     {
         return $this->then(
             null,
-            null,
             function($reason) use($onFulfilledOrRejected) {
                 return Promise::doResolve($onFulfilledOrRejected())->then(function() use($reason) {
                     return new static($reason);
@@ -176,7 +169,7 @@ class PromiseCancelled implements PromiseInterface
      */
     public function isRejected()
     {
-        return false;
+        return true;
     }
 
     /**
@@ -185,7 +178,7 @@ class PromiseCancelled implements PromiseInterface
      */
     public function isCancelled()
     {
-        return true;
+        return false;
     }
 
     /**
@@ -237,7 +230,7 @@ class PromiseCancelled implements PromiseInterface
      */
     protected function getReason()
     {
-        return $this->reason;
+        return ($this->reason instanceof ThrowableProxy) ? $this->reason->toThrowable() : $this->reason;
     }
 
     /**
@@ -251,6 +244,6 @@ class PromiseCancelled implements PromiseInterface
             throw $reason;
         }
 
-        throw new CancellationException($reason);
+        throw new RejectionException($reason);
     }
 }

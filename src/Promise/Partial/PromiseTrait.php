@@ -1,14 +1,14 @@
 <?php
 
-namespace Kraken\Promise\Partial;
+namespace Dazzle\Promise\Partial;
 
-use Kraken\Promise\Helper\CancellationQueue;
-use Kraken\Promise\Promise;
-use Kraken\Promise\PromiseCancelled;
-use Kraken\Promise\PromiseFulfilled;
-use Kraken\Promise\PromiseInterface;
-use Kraken\Promise\PromiseRejected;
-use Kraken\Throwable\Exception\Runtime\UnderflowException;
+use Dazzle\Promise\Helper\CancellationQueue;
+use Dazzle\Promise\Promise;
+use Dazzle\Promise\PromiseCancelled;
+use Dazzle\Promise\PromiseFulfilled;
+use Dazzle\Promise\PromiseInterface;
+use Dazzle\Promise\PromiseRejected;
+use Dazzle\Throwable\Exception\Runtime\UnderflowException;
 
 trait PromiseTrait
 {

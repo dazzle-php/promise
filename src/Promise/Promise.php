@@ -1,8 +1,8 @@
 <?php
 
-namespace Kraken\Promise;
+namespace Dazzle\Promise;
 
-use Kraken\Promise\Partial\PromiseTrait;
+use Dazzle\Promise\Partial\PromiseTrait;
 use Error;
 use Exception;
 

@@ -1,34 +1,32 @@
 <?php
 
-namespace Kraken\Promise;
+namespace Dazzle\Promise;
 
-use Kraken\Throwable\Exception\Logic\InvalidArgumentException;
-use Kraken\Throwable\Exception\Runtime\RejectionException;
-use Kraken\Throwable\ThrowableProxy;
+use Dazzle\Throwable\Exception\Logic\InvalidArgumentException;
 use Error;
 use Exception;
 
-class PromiseRejected implements PromiseInterface
+class PromiseFulfilled implements PromiseInterface
 {
     /**
-     * @var Error|Exception|ThrowableProxy|string|null
+     * @var mixed|null
      */
-    protected $reason;
+    protected $value;
 
     /**
-     * @param Error|Exception|string|null
+     * @param mixed|null $value
      * @throws InvalidArgumentException
      */
-    public function __construct($reason = null)
+    public function __construct($value = null)
     {
-        if ($reason instanceof PromiseInterface)
+        if ($value instanceof PromiseInterface)
         {
             throw new InvalidArgumentException(
-                'You cannot create PromiseRejected with a promise. Use Promise::doReject($promiseOrValue) instead.'
+                'You cannot create PromiseFulfilled with a promise. Use Promise::doResolve($promiseOrValue) instead.'
             );
         }
 
-        $this->reason = $reason;
+        $this->value = $value;
     }
 
     /**
@@ -36,7 +34,7 @@ class PromiseRejected implements PromiseInterface
      */
     public function __destruct()
     {
-        unset($this->reason);
+        unset($this->value);
     }
 
     /**
@@ -45,14 +43,14 @@ class PromiseRejected implements PromiseInterface
      */
     public function then(callable $onFulfilled = null, callable $onRejected = null, callable $onCancel = null)
     {
-        if (null === $onRejected)
+        if (null === $onFulfilled)
         {
             return $this;
         }
 
         try
         {
-            return Promise::doResolve($onRejected($this->getReason()));
+            return Promise::doResolve($onFulfilled($this->getValue()));
         }
         catch (Error $ex)
         {
@@ -70,17 +68,12 @@ class PromiseRejected implements PromiseInterface
      */
     public function done(callable $onFulfilled = null, callable $onRejected = null, callable $onCancel = null)
     {
-        if (null === $onRejected)
+        if (null === $onFulfilled)
         {
-            $this->throwError($this->getReason());
+            return;
         }
 
-        $result = $onRejected($this->getReason());
-
-        if ($result instanceof self)
-        {
-            $this->throwError($result->getReason());
-        }
+        $result = $onFulfilled($this->getValue());
 
         if ($result instanceof PromiseInterface)
         {
@@ -95,9 +88,8 @@ class PromiseRejected implements PromiseInterface
     public function spread(callable $onFulfilled = null, callable $onRejected = null, callable $onCancel = null)
     {
         return $this->then(
-            null,
-            function($rejections) use($onRejected) {
-                return $onRejected(...((array) $rejections));
+            function($values) use($onFulfilled) {
+                return $onFulfilled(...((array) $values));
             }
         );
     }
@@ -136,10 +128,9 @@ class PromiseRejected implements PromiseInterface
     public function always(callable $onFulfilledOrRejected)
     {
         return $this->then(
-            null,
-            function($reason) use($onFulfilledOrRejected) {
-                return Promise::doResolve($onFulfilledOrRejected())->then(function() use($reason) {
-                    return new static($reason);
+            function($value) use($onFulfilledOrRejected) {
+                return Promise::doResolve($onFulfilledOrRejected())->then(function() use($value) {
+                    return $value;
                 });
             }
         );
@@ -160,7 +151,7 @@ class PromiseRejected implements PromiseInterface
      */
     public function isFulfilled()
     {
-        return false;
+        return true;
     }
 
     /**
@@ -169,7 +160,7 @@ class PromiseRejected implements PromiseInterface
      */
     public function isRejected()
     {
-        return true;
+        return false;
     }
 
     /**
@@ -222,7 +213,7 @@ class PromiseRejected implements PromiseInterface
      */
     protected function getValue()
     {
-        return null;
+        return $this->value;
     }
 
     /**
@@ -230,20 +221,6 @@ class PromiseRejected implements PromiseInterface
      */
     protected function getReason()
     {
-        return ($this->reason instanceof ThrowableProxy) ? $this->reason->toThrowable() : $this->reason;
-    }
-
-    /**
-     * @param Error|Exception|string $reason
-     * @throws Error|Exception
-     */
-    protected function throwError($reason)
-    {
-        if ($reason instanceof Error || $reason instanceof Exception)
-        {
-            throw $reason;
-        }
-
-        throw new RejectionException($reason);
+        return null;
     }
 }

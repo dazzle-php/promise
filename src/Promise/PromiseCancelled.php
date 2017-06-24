@@ -1,32 +1,33 @@
 <?php
 
-namespace Kraken\Promise;
+namespace Dazzle\Promise;
 
-use Kraken\Throwable\Exception\Logic\InvalidArgumentException;
+use Dazzle\Throwable\Exception\Logic\InvalidArgumentException;
+use Dazzle\Throwable\Exception\Runtime\CancellationException;
 use Error;
 use Exception;
 
-class PromiseFulfilled implements PromiseInterface
+class PromiseCancelled implements PromiseInterface
 {
     /**
-     * @var mixed|null
+     * @var Error|Exception|string|null
      */
-    protected $value;
+    protected $reason;
 
     /**
-     * @param mixed|null $value
+     * @param Error|Exception|string|null $reason
      * @throws InvalidArgumentException
      */
-    public function __construct($value = null)
+    public function __construct($reason = null)
     {
-        if ($value instanceof PromiseInterface)
+        if ($reason instanceof PromiseInterface)
         {
             throw new InvalidArgumentException(
-                'You cannot create PromiseFulfilled with a promise. Use Promise::doResolve($promiseOrValue) instead.'
+                'You cannot create PromiseCancelled with a promise. Use Promise::doCancel($promiseOrValue) instead.'
             );
         }
 
-        $this->value = $value;
+        $this->reason = $reason;
     }
 
     /**
@@ -34,7 +35,7 @@ class PromiseFulfilled implements PromiseInterface
      */
     public function __destruct()
     {
-        unset($this->value);
+        unset($this->reason);
     }
 
     /**
@@ -43,23 +44,29 @@ class PromiseFulfilled implements PromiseInterface
      */
     public function then(callable $onFulfilled = null, callable $onRejected = null, callable $onCancel = null)
     {
-        if (null === $onFulfilled)
+        if (null === $onCancel)
         {
             return $this;
         }
 
         try
         {
-            return Promise::doResolve($onFulfilled($this->getValue()));
+            return Promise::doResolve($onCancel($this->getReason()))
+                ->then(
+                    function() {
+                        return Promise::doCancel($this->getReason());
+                    },
+                    function() {
+                        return Promise::doCancel($this->getReason());
+                    }
+                );
         }
         catch (Error $ex)
-        {
-            return new PromiseRejected($ex);
-        }
+        {}
         catch (Exception $ex)
-        {
-            return new PromiseRejected($ex);
-        }
+        {}
+
+        return Promise::doCancel($this->getReason());
     }
 
     /**
@@ -68,12 +75,17 @@ class PromiseFulfilled implements PromiseInterface
      */
     public function done(callable $onFulfilled = null, callable $onRejected = null, callable $onCancel = null)
     {
-        if (null === $onFulfilled)
+        if (null === $onCancel)
         {
-            return;
+            $this->throwError($this->getReason());
         }
 
-        $result = $onFulfilled($this->getValue());
+        $result = $onCancel($this->getReason());
+
+        if ($result instanceof self)
+        {
+            $this->throwError($result->getReason());
+        }
 
         if ($result instanceof PromiseInterface)
         {
@@ -88,8 +100,10 @@ class PromiseFulfilled implements PromiseInterface
     public function spread(callable $onFulfilled = null, callable $onRejected = null, callable $onCancel = null)
     {
         return $this->then(
-            function($values) use($onFulfilled) {
-                return $onFulfilled(...((array) $values));
+            null,
+            null,
+            function($reasons) use($onCancel) {
+                return $onCancel(...((array) $reasons));
             }
         );
     }
@@ -128,9 +142,11 @@ class PromiseFulfilled implements PromiseInterface
     public function always(callable $onFulfilledOrRejected)
     {
         return $this->then(
-            function($value) use($onFulfilledOrRejected) {
-                return Promise::doResolve($onFulfilledOrRejected())->then(function() use($value) {
-                    return $value;
+            null,
+            null,
+            function($reason) use($onFulfilledOrRejected) {
+                return Promise::doResolve($onFulfilledOrRejected())->then(function() use($reason) {
+                    return new static($reason);
                 });
             }
         );
@@ -151,7 +167,7 @@ class PromiseFulfilled implements PromiseInterface
      */
     public function isFulfilled()
     {
-        return true;
+        return false;
     }
 
     /**
@@ -169,7 +185,7 @@ class PromiseFulfilled implements PromiseInterface
      */
     public function isCancelled()
     {
-        return false;
+        return true;
     }
 
     /**
@@ -213,7 +229,7 @@ class PromiseFulfilled implements PromiseInterface
      */
     protected function getValue()
     {
-        return $this->value;
+        return null;
     }
 
     /**
@@ -221,6 +237,20 @@ class PromiseFulfilled implements PromiseInterface
      */
     protected function getReason()
     {
-        return null;
+        return $this->reason;
+    }
+
+    /**
+     * @param Error|Exception|string $reason
+     * @throws Error|Exception
+     */
+    protected function throwError($reason)
+    {
+        if ($reason instanceof Error || $reason instanceof Exception)
+        {
+            throw $reason;
+        }
+
+        throw new CancellationException($reason);
     }
 }

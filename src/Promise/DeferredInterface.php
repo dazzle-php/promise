@@ -1,6 +1,6 @@
 <?php
 
-namespace Kraken\Promise;
+namespace Dazzle\Promise;
 
 use Error;
 use Exception;
